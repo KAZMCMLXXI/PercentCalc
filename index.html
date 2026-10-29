@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ultimate Percentage Calculator</title>
+<style>
+  :root { --primary: #2563eb; --bg: #f8fafc; --card: #ffffff; --text: #1e293b; --muted: #64748b; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 450px; margin: 0 auto; padding: 20px; background: var(--bg); color: var(--text); min-height: 100vh; box-sizing: border-box; }
+  h2 { text-align: center; margin-bottom: 24px; color: var(--primary); }
+  .card { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 20px; }
+  select, input { width: 100%; padding: 14px; margin-bottom: 12px; box-sizing: border-box; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 16px; background: #fff; }
+  select { font-weight: 600; color: var(--primary); }
+  button { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+  button:active { background: #1d4ed8; }
+  #result { margin-top: 16px; padding: 16px; background: #f1f5f9; border-radius: 8px; text-align: center; font-size: 1.1em; font-weight: 600; color: var(--text); min-height: 50px; display: flex; align-items: center; justify-content: center; word-break: break-word; }
+  .error { color: #ef4444 !important; background: #fef2f2 !important; }
+  .success { color: #10b981 !important; background: #ecfdf5 !important; }
+  .hidden { display: none !important; }
+  optgroup { font-weight: bold; color: #334155; }
+</style>
+</head>
+<body>
+
+  <h2>Ultimate % Calculator</h2>
+  
+  <div class="card">
+    <select id="caseSelect" onchange="updateUI()">
+      <optgroup label="Basic Math">
+        <option value="0">What is X% of Y?</option>
+        <option value="1">X is what % of Y?</option>
+        <option value="2">% Change from X to Y</option>
+        <option value="3">Fraction to Percentage</option>
+        <option value="4">Price / Quantity (Unit Price)</option>
+      </optgroup>
+      <optgroup label="Shopping & Taxes">
+        <option value="5">Discount (Final Price)</option>
+        <option value="6">Tip (Amount & Total)</option>
+        <option value="7">Reverse % (Original before Discount)</option>
+        <option value="8">Sales Tax (Total with Tax)</option>
+        <option value="9">VAT (Total with VAT)</option>
+        <option value="10">Margin & Sales Tax</option>
+        <option value="11">Margin & VAT</option>
+        <option value="12">Margin vs. Markup</option>
+      </optgroup>
+      <optgroup label="Finance & Growth">
+        <option value="13">Compound Interest</option>
+        <option value="14">Cumulative Growth</option>
+        <option value="15">Inflation (Future Price)</option>
+        <option value="16">Doubling Time</option>
+      </optgroup>
+    </select>
+
+    <input type="number" id="valA" placeholder="Value A" step="any">
+    <input type="number" id="valB" placeholder="Value B" step="any">
+    <input type="number" id="valC" placeholder="Value C" step="any" class="hidden">
+    
+    <button onclick="calculate()">Calculate</button>
+    <div id="result">Result will appear here</div>
+  </div>
+
+  <script>
+    // Configuration for all 17 cases
+    const config = {
+      0: { a: "X (Percentage)", b: "Y (Total)", c: null, calc: (a,b,c) => `${a}% of ${b} = ${(a/100)*b}` },
+      1: { a: "X (Part)", b: "Y (Total)", c: null, calc: (a,b,c) => `${a} is ${((a/b)*100).toFixed(2)}% of ${b}` },
+      2: { a: "X (Old Value)", b: "Y (New Value)", c: null, calc: (a,b,c) => { let ch=((b-a)/a)*100; return `Change: ${ch>=0?'+':''}${ch.toFixed(2)}%`; } },
+      3: { a: "Numerator", b: "Denominator", c: null, calc: (a,b,c) => `${a}/${b} = ${((a/b)*100).toFixed(2)}%` },
+      4: { a: "Total Price", b: "Quantity", c: null, calc: (a,b,c) => `Unit Price: ${(a/b).toFixed(2)}` },
+      5: { a: "Original Price", b: "Discount %", c: null, calc: (a,b,c) => `Final Price: ${(a - (a*(b/100))).toFixed(2)}` },
+      6: { a: "Bill Amount", b: "Tip %", c: null, calc: (a,b,c) => { let tip=a*(b/100); return `Tip: ${tip.toFixed(2)} | Total: ${(a+tip).toFixed(2)}`; } },
+      7: { a: "Final Price", b: "Discount %", c: null, calc: (a,b,c) => `Original Price: ${(a / (1 - b/100)).toFixed(2)}` },
+      8: { a: "Net Price", b: "Sales Tax %", c: null, calc: (a,b,c) => `Total with Tax: ${(a * (1 + b/100)).toFixed(2)}` },
+      9: { a: "Net Price", b: "VAT %", c: null, calc: (a,b,c) => `Total with VAT: ${(a * (1 + b/100)).toFixed(2)}` },
+      10: { a: "Cost", b: "Margin %", c: "Tax %", calc: (a,b,c) => { let sell = a/(1-b/100); return `Sell Price: ${sell.toFixed(2)} | Total w/ Tax: ${(sell*(1+c/100)).toFixed(2)}`; } },
+      11: { a: "Cost", b: "Margin %", c: "VAT %", calc: (a,b,c) => { let sell = a/(1-b/100); return `Sell Price: ${sell.toFixed(2)} | Total w/ VAT: ${(sell*(1+c/100)).toFixed(2)}`; } },
+      12: { a: "Cost", b: "Selling Price", c: null, calc: (a,b,c) => { let margin=((b-a)/b)*100; let markup=((b-a)/a)*100; return `Margin: ${margin.toFixed(2)}% | Markup: ${markup.toFixed(2)}%`; } },
+      13: { a: "Principal", b: "Annual Rate %", c: "Years", calc: (a,b,c) => `Future Value: ${(a * Math.pow(1 + b/100, c)).toFixed(2)}` },
+      14: { a: "Initial Value", b: "Growth Rate %", c: "Periods", calc: (a,b,c) => `Final Value: ${(a * Math.pow(1 + b/100, c)).toFixed(2)}` },
+      15: { a: "Current Price", b: "Inflation %", c: "Years", calc: (a,b,c) => `Future Price: ${(a * Math.pow(1 + b/100, c)).toFixed(2)}` },
+      16: { a: "Growth Rate %", b: null, c: null, calc: (a,b,c) => `Doubling Time: ${(Math.log(2) / Math.log(1 + a/100)).toFixed(2)} periods` }
+    };
+
+    function updateUI() {
+      const c = document.getElementById('caseSelect').value;
+      const conf = config[c];
+      
+      document.getElementById('valA').placeholder = conf.a;
+      
+      const inputB = document.getElementById('valB');
+      if (conf.b) { inputB.placeholder = conf.b; inputB.classList.remove('hidden'); } 
+      else { inputB.classList.add('hidden'); inputB.value = ''; }
+      
+      const inputC = document.getElementById('valC');
+      if (conf.c) { inputC.placeholder = conf.c; inputC.classList.remove('hidden'); } 
+      else { inputC.classList.add('hidden'); inputC.value = ''; }
+      
+      const res = document.getElementById('result');
+      res.innerText = "Result will appear here";
+      res.className = "";
+    }
+
+    function calculate() {
+      const c = parseInt(document.getElementById('caseSelect').value);
+      const conf = config[c];
+      const res = document.getElementById('result');
+      
+      const a = parseFloat(document.getElementById('valA').value);
+      const b = parseFloat(document.getElementById('valB').value);
+      const cc = parseFloat(document.getElementById('valC').value);
+
+      // Validation
+      if (isNaN(a) || (conf.b && isNaN(b)) || (conf.c && isNaN(cc))) {
+        res.innerText = "Please fill in all required fields";
+        res.className = "error";
+        return;
+      }
+
+      try {
+        // Specific edge case checks
+        if ((c === 1 || c === 3 || c === 4) && b === 0) throw "Division by zero";
+        if (c === 2 && a === 0) throw "Cannot calculate change from zero";
+        if (c === 7 && b === 100) throw "Discount cannot be 100%";
+        if ((c === 10 || c === 11) && b === 100) throw "Margin cannot be 100%";
+        if (c === 12 && a === 0) throw "Cost cannot be zero";
+        if (c === 16 && a <= -100) throw "Rate must be greater than -100%";
+
+        const resultText = conf.calc(a, b, cc);
+        res.innerText = resultText;
+        res.className = "success";
+      } catch (e) {
+        res.innerText = typeof e === 'string' ? `Error: ${e}` : "Math Error";
+        res.className = "error";
+      }
+    }
+
+    // Initialize UI on load
+    updateUI();
+  </script>
+</body>
+</html>
